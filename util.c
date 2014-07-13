@@ -14,18 +14,18 @@
  *
  *   You should have received a copy of the GNU General Public License
  *   along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *   
+ *
  *   Contact the author at contact@fwei.tk
  */
 
 #include "strings.h"
 #include "util.h"
 #include <ctype.h>
-#include <curses.h>
 #include <string.h>
 #include <unistd.h>
-
-
+#include <stdlib.h>
+int out_fd;
+extern int pipes[FD_SETSIZE][2];
 void allLower(char* str)
 {
   for(int i=0;str[i];++i)
@@ -35,21 +35,11 @@ void allLower(char* str)
 }
 void print_string(const char* str) /* print string, slowly */
 {
-  int window_height;
-  int junk;
-  getmaxyx(stdscr, window_height, junk);
   int i=0;
   while(str[i])
     {
-      addch(str[i]);
-      int cursx, cursy;
-      getyx(stdscr, cursy, cursx);
-      if(cursy==window_height)
-	{
-	  scroll(stdscr);
-	}
-      usleep(SLEEP_TIME);
-      refresh();
+      write(out_fd, &str[i], 1);
+      fsync(out_fd);
       ++i;
     }
 }
@@ -66,4 +56,28 @@ void remove_punct(char* buf)
         }
     }
 }
+void clear(void)
+{
+}
+void refresh(void)
+{
+  fsync(out_fd);
+}
+int getnstr(char* buf, int max)
+{
+  printf("reading...\n");
+  memset(buf, 0, sizeof(buf));
+  int back=0;
+  char c=0;
+  do {
+    read(pipes[out_fd][0], &c, 1);
+    if(c!='\n')
+      {
 
+        buf[back]=c;
+        ++back;
+      }
+  }
+  while(back<max && c!='\n');
+  return OK;
+}

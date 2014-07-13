@@ -14,24 +14,23 @@
  *
  *   You should have received a copy of the GNU General Public License
  *   along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *   
+ *
  *   Contact the author at contact@fwei.tk
  */
 
 #include "gtnw.h"
 #include "strings.h"
 #include "util.h"
-#include <curses.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-
 void do_chatbot(void)
 {
-  int stage=0; /* stage 0: i'm fine how are you... -> 
-                  stage 1: people sometimes make mistakes -> 
-                  stage 2: love to. how about global thermonuclear war? -> 
-                  stage 3: no lets play global thermonuclear war -> 
+  int stage=0; /* stage 0: i'm fine how are you... ->
+                  stage 1: people sometimes make mistakes ->
+                  stage 2: love to. how about global thermonuclear war? ->
+                  stage 3: no lets play global thermonuclear war ->
                   stage 4: GLOBAL THERMONUCLEAR WAR!!! */
   while(1)
     {
@@ -61,7 +60,7 @@ void do_chatbot(void)
                      valid=true;
                    }
                 }
-	      break;
+              break;
             case 1:
               for(int i=0;i<sizeof(stage2_triggers)/sizeof(const char*);++i)
                 {
@@ -72,18 +71,18 @@ void do_chatbot(void)
                      valid=true;
                     }
                 }
-	      break;
+              break;
             case 2:
               for(int i=0;i<sizeof(stage3_triggers)/sizeof(const char*);++i)
                 {
                   if(strcmp(buf, stage3_triggers[i])==0)
-                    { 
+                    {
                       print_string("\n\nWOULDN'T YOU PREFER A GOOD GAME OF CHESS?\n\n");
                       ++stage;
                      valid=true;
                     }
                 }
-	      break;
+              break;
             case 3:
               for(int i=0;i<sizeof(stage4_triggers)/sizeof(const char*);++i)
                 {
@@ -95,29 +94,29 @@ void do_chatbot(void)
                       global_thermonuclear_war();
                     }
                 }
-	      break;
+              break;
             } // switch
-	  /* now check for phase-insensitive strings */
-	  for(int i=0;i<sizeof(exit_triggers)/sizeof(const char*);++i)
-	    {
-	      if(strcmp(buf, exit_triggers[i])==0)
-		{
-		  print_string("\n\n");
-		  print_string(exit_responses[rand()%(sizeof(exit_responses)/sizeof(const char*))]);
-		  print_string("\n--CONNECTION TERMINATED--");
-		  return;
-		}
-	    }
-	  for(int i=0;i<sizeof(greetings_triggers)/sizeof(const char*);++i)
-	    {
-	      if(strcmp(buf, greetings_triggers[i])==0)
-		{
-		  print_string("\n\n");
-		  print_string(greetings_responses[rand()%(sizeof(greetings_responses)/sizeof(const char*))]);
-		  print_string("\n\n");
-		  valid=true;
-		}
-	    }
+          /* now check for phase-insensitive strings */
+          for(int i=0;i<sizeof(exit_triggers)/sizeof(const char*);++i)
+            {
+              if(strcmp(buf, exit_triggers[i])==0)
+                {
+                  print_string("\n\n");
+                  print_string(exit_responses[rand()%(sizeof(exit_responses)/sizeof(const char*))]);
+                  print_string("\n--CONNECTION TERMINATED--");
+                  return;
+                }
+            }
+          for(int i=0;i<sizeof(greetings_triggers)/sizeof(const char*);++i)
+            {
+              if(strcmp(buf, greetings_triggers[i])==0)
+                {
+                  print_string("\n\n");
+                  print_string(greetings_responses[rand()%(sizeof(greetings_responses)/sizeof(const char*))]);
+                  print_string("\n\n");
+                  valid=true;
+                }
+            }
           if(!valid)
             {
               print_string("\n\n");
@@ -127,4 +126,3 @@ void do_chatbot(void)
         } // else
     } // while
 }
-

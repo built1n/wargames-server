@@ -14,14 +14,14 @@
  *
  *   You should have received a copy of the GNU General Public License
  *   along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *   
+ *
  *   Contact the author at contact@fwei.tk
  */
 
 #ifdef __cplusplus
 extern "C" {
 #endif
-void be_joshua();
+void be_joshua(int);
 #ifdef __cplusplus
 };
 #endif

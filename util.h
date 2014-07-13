@@ -22,3 +22,9 @@
 void allLower(char*);
 void print_string(const char*);
 void remove_punct(char*);
+void refresh(void);
+void clear(void);
+int getnstr(char*, int);
+#define ERR 1
+#define OK 0
+extern int out_fd;

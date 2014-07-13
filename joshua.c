@@ -14,7 +14,7 @@
  *
  *   You should have received a copy of the GNU General Public License
  *   along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *   
+ *
  *   Contact the author at contact@fwei.tk
  */
 
@@ -23,16 +23,15 @@
 #include "strings.h" /* predefined strings */
 #include "util.h"
 
-#include <curses.h>
 #include <signal.h>
+#include <stdbool.h>
 #include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 
 void cleanup(int signum)
 {
-  endwin();
-  exit(0);
+  exit(EXIT_SUCCESS);
 }
 void random_stuff(void) /* print random junk on the screen for about 3 seconds */
 {
@@ -45,24 +44,19 @@ void random_stuff(void) /* print random junk on the screen for about 3 seconds *
   usleep(100000);
   clear();
 }
-void be_joshua()
+void be_joshua(int fd)
 {
-  initscr();
+  printf("joshua started.\n");
+  out_fd=fd;
   clear();
   signal(SIGINT, &cleanup);
   /*
   start_color();
   init_pair(1, COLOR_BLUE, COLOR_BLACK);
   attron(COLOR_PAIR(1));*/
-  scrollok(stdscr, true);
   bool gamesPhase=false;
   char buf[33];
-  int maxx, maxy;
-  getmaxyx(stdscr, maxy, maxx);
-  for(int i=0;i<maxx*2;++i)
-    {
-      print_string(" ");
-    }
+  print_string("\n\n");
   do {
     if(!gamesPhase)
       print_string("LOGON: ");
@@ -99,16 +93,14 @@ void be_joshua()
   for(int i=0;i<sizeof(exit_triggers)/sizeof(const char*);++i)
     {
       if(strcmp(buf, exit_triggers[i])==0)
-	{
-	  print_string("\n\n");
-	  print_string(exit_responses[rand()%sizeof(exit_responses)/sizeof(const char*)]);
-	  print_string("\n--CONNECTION TERMINATED--");
-	  return;
-	}
+        {
+          print_string("\n\n");
+          print_string(exit_responses[rand()%sizeof(exit_responses)/sizeof(const char*)]);
+          print_string("\n--CONNECTION TERMINATED--");
+          return;
+        }
     }
   print_string("\n\nHOW ARE YOU FEELING TODAY?\n\n");
   refresh();
   do_chatbot();
-  endwin();
 }
-

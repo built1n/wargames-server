@@ -14,7 +14,7 @@
  *
  *   You should have received a copy of the GNU General Public License
  *   along with this program.  If not, see <http://www.gnu.org/licenses/>.
- *   
+ *
  *   Contact the author at contact@fwei.tk
  */
 
@@ -22,8 +22,8 @@
 #include "location.h"
 #include "map.h"
 #include "util.h"
-#include <curses.h>
 #include <stdlib.h>
+#include <stdio.h>
 #include <string.h>
 #include <time.h>
 #include <unistd.h>
@@ -69,16 +69,16 @@ static void fire_missile(struct location_t* city)
 
 /* calculate populations of US+USSR by totaling the populations of each of their cities */
 static void calc_pops(long long* us_pop, long long* ussr_pop)
-{ 
+{
   *us_pop=0;
   *ussr_pop=0;
   /* calculate populations */
   for(int i=0;i<sizeof(world)/sizeof(struct location_t);++i)
     {
       if(world[i].owner==USSR)
-	*ussr_pop+=world[i].population;
+        *ussr_pop+=world[i].population;
       else
-	*us_pop+=world[i].population;
+        *us_pop+=world[i].population;
     }
 }
 
@@ -98,31 +98,31 @@ static void print_map_with_pops(void)
   for(int i=0;i<sizeof(world)/sizeof(struct location_t);++i)
     {
       if(world[i].owner==USSR)
-	{
-	  ussr_cities[ussr_back]=world[i];
-	  ++ussr_back;
-	}
+        {
+          ussr_cities[ussr_back]=world[i];
+          ++ussr_back;
+        }
       else
-	{
-	  us_cities[us_back]=world[i];
-	  ++us_back;
-	}
+        {
+          us_cities[us_back]=world[i];
+          ++us_back;
+        }
     }
   if(us_back<ussr_back)
     {
       while(us_back!=ussr_back)
-	{
-	  us_cities[us_back].print=false;
-	  ++us_back;
-	}
+        {
+          us_cities[us_back].print=false;
+          ++us_back;
+        }
     }
   else if(us_back>ussr_back)
     {
       while(us_back!=ussr_back)
-	{
-	  ussr_cities[ussr_back].print=false;
-	  ++ussr_back;
-	}
+        {
+          ussr_cities[ussr_back].print=false;
+          ++ussr_back;
+        }
     }
   us_cities[us_back].print=true;
   us_cities[us_back].print_name="Total";
@@ -137,19 +137,19 @@ static void print_map_with_pops(void)
   for(int i=0;i<us_back;++i)
     {
       if(us_cities[i].print && ussr_cities[i].print)
-	{
+        {
           char buf_2[32];
           snprintf(buf_2, 31, "%u", us_cities[i].population);
-	  snprintf(buf, 512, "%s: %u %*s: %u", us_cities[i].print_name, us_cities[i].population, 64-strlen(us_cities[i].print_name)-strlen(buf_2), ussr_cities[i].print_name, ussr_cities[i].population);
-	}
+          snprintf(buf, 512, "%s: %u %*s: %u", us_cities[i].print_name, us_cities[i].population, 64-strlen(us_cities[i].print_name)-strlen(buf_2), ussr_cities[i].print_name, ussr_cities[i].population);
+        }
       else if(us_cities[i].print && !ussr_cities[i].print)
-	snprintf(buf, 512, "%s: %u", us_cities[i].print_name, us_cities[i].population);
+        snprintf(buf, 512, "%s: %u", us_cities[i].print_name, us_cities[i].population);
       else
-	{
-	  memset(buf, ' ', 255);
-	  buf[255]=0;
-	  snprintf(buf+64, 512-64, "%s: %u", ussr_cities[i].print_name, ussr_cities[i].population);
-	}
+        {
+          memset(buf, ' ', 255);
+          buf[255]=0;
+          snprintf(buf+64, 512-64, "%s: %u", ussr_cities[i].print_name, ussr_cities[i].population);
+        }
       print_string(buf);
       print_string("\n");
     }
@@ -158,16 +158,14 @@ static void print_map_with_pops(void)
 /* prompt the user for targets for the initial strike */
 static void do_first_strike(int side)
 {
-  attr_on(WA_UNDERLINE, 0);
   print_string("AWAITING FIRST STRIKE COMMAND");
-  attr_off(WA_UNDERLINE, 0);
   print_string("\n\n\nPLEASE LIST PRIMARY TARGETS BY\nCITY AND/OR COUNTY NAME:\n\n");
   char target_names[32][129];
   bool good=true;
   int num_targets=0;
   struct location_t *targets[32];
   int num_targets_found=0;
-  int max_targets=side==USA?4:6;
+  int max_targets=side==USA?6:7;
   for(int i=0;num_targets_found<max_targets && good;++i)
     {
       getnstr(target_names[i], 128);
@@ -176,52 +174,52 @@ static void do_first_strike(int side)
           good=false;
         }
       else
-	{
-	  ++num_targets;
-	  allLower(target_names[i]);
-	  remove_punct(target_names[i]);
-	  bool found=false;
-	  for(int j=0;j<sizeof(world)/sizeof(struct location_t);++j)
-	    {
-	      if(strcmp(world[j].name, target_names[i])==0)
-		{
-		  found=true;
-		  if(world[j].owner!=side)
-		    {
-		      targets[num_targets_found]=&world[j];
-		      ++num_targets_found;
-		    }
-		  else
-		    {
-		      print_string("\n\nATTEMPTING TO FIRE AT OWN CITY.\nPLEASE CONFIRM (YES OR NO):  ");
-		      char response[17];
-		      getnstr(response, 16);
-		      allLower(response);
-		      remove_punct(response);
-		      if(strcmp(response, "yes")==0 || strcmp(response, "y")==0)
-			{
+        {
+          ++num_targets;
+          allLower(target_names[i]);
+          remove_punct(target_names[i]);
+          bool found=false;
+          for(int j=0;j<sizeof(world)/sizeof(struct location_t);++j)
+            {
+              if(strcmp(world[j].name, target_names[i])==0)
+                {
+                  found=true;
+                  if(world[j].owner!=side)
+                    {
+                      targets[num_targets_found]=&world[j];
+                      ++num_targets_found;
+                    }
+                  else
+                    {
+                      print_string("\n\nATTEMPTING TO FIRE AT OWN CITY.\nPLEASE CONFIRM (YES OR NO):  ");
+                      char response[17];
+                      getnstr(response, 16);
+                      allLower(response);
+                      remove_punct(response);
+                      if(strcmp(response, "yes")==0 || strcmp(response, "y")==0)
+                        {
                           print_string("\n\nATTEMPTING TO FIRE AT OWN CITY.\nARE YOU SURE (YES OR NO):  ");
                           response[0]=0;
                           getnstr(response, 16);
                           allLower(response);
                           remove_punct(response);
                           if(strcmp(response, "yes")==0 || strcmp(response, "y")==0)
-                            { 
+                            {
                               print_string("\nTARGET CONFIRMED.\n\n");
                               targets[num_targets_found]=&world[j];
                               ++num_targets_found;
                             }
-			}
-		    }
-		}
-	    }
-	  if(!found)
-	    {
-	      print_string("TARGET NOT FOUND: ");
-	      print_string(target_names[i]);
-	      print_string("\n");
-	    }
-	}
+                        }
+                    }
+                }
+            }
+          if(!found)
+            {
+              print_string("TARGET NOT FOUND: ");
+              print_string(target_names[i]);
+              print_string("\n");
+            }
+        }
     }
   for(int i=0;i<num_targets_found;++i)
     {
@@ -236,17 +234,14 @@ static void do_first_strike(int side)
 static void do_missile_launch(int side)
 {
   print_string("\n\n");
-  attr_on(WA_UNDERLINE, 0);
   print_string("AWAITING STRIKE COMMAND");
-  attr_off(WA_UNDERLINE, 0);
   print_string("\n\n\nPLEASE LIST PRIMARY TARGETS BY\nCITY AND/OR COUNTY NAME:\n\n");
   char target_names[32][129];
   bool good=true;
   int num_targets=0;
   struct location_t *targets[32];
   int num_targets_found=0;
-  int max_targets=side==USA?4:6;
-  for(int i=0;num_targets_found<max_targets && good;++i)
+  for(int i=0;num_targets_found<6 && good;++i)
     {
       getnstr(target_names[i], 128);
       if(strcmp(target_names[i],"")==0)
@@ -254,52 +249,52 @@ static void do_missile_launch(int side)
           good=false;
         }
       else
-	{
-	  ++num_targets;
-	  allLower(target_names[i]);
-	  remove_punct(target_names[i]);
-	  bool found=false;
-	  for(int j=0;j<sizeof(world)/sizeof(struct location_t);++j)
-	    {
-	      if(strcmp(world[j].name, target_names[i])==0)
-		{
-		  found=true;
-		  if(world[j].owner!=side)
-		    {
-		      targets[num_targets_found]=&world[j];
-		      ++num_targets_found;
-		    }
-		  else
-		    {
-		      print_string("\n\nATTEMPTING TO FIRE AT OWN CITY.\nPLEASE CONFIRM (YES OR NO):  ");
-		      char response[17];
-		      getnstr(response, 16);
-		      allLower(response);
-		      remove_punct(response);
-		      if(strcmp(response, "yes")==0 || strcmp(response, "y")==0)
-			{
+        {
+          ++num_targets;
+          allLower(target_names[i]);
+          remove_punct(target_names[i]);
+          bool found=false;
+          for(int j=0;j<sizeof(world)/sizeof(struct location_t);++j)
+            {
+              if(strcmp(world[j].name, target_names[i])==0)
+                {
+                  found=true;
+                  if(world[j].owner!=side)
+                    {
+                      targets[num_targets_found]=&world[j];
+                      ++num_targets_found;
+                    }
+                  else
+                    {
+                      print_string("\n\nATTEMPTING TO FIRE AT OWN CITY.\nPLEASE CONFIRM (YES OR NO):  ");
+                      char response[17];
+                      getnstr(response, 16);
+                      allLower(response);
+                      remove_punct(response);
+                      if(strcmp(response, "yes")==0 || strcmp(response, "y")==0)
+                        {
                           print_string("\n\nATTEMPTING TO FIRE AT OWN CITY.\nARE YOU SURE (YES OR NO):  ");
                           response[0]=0;
                           getnstr(response, 16);
                           allLower(response);
                           remove_punct(response);
                           if(strcmp(response, "yes")==0 || strcmp(response, "y")==0)
-                            { 
+                            {
                               print_string("\nTARGET CONFIRMED.\n\n");
                               targets[num_targets_found]=&world[j];
                               ++num_targets_found;
                             }
-			}
-		    }
-		}
-	    }
-	  if(!found)
-	    {
-	      print_string("TARGET NOT FOUND: ");
-	      print_string(target_names[i]);
-	      print_string("\n");
-	    }
-	}
+                        }
+                    }
+                }
+            }
+          if(!found)
+            {
+              print_string("TARGET NOT FOUND: ");
+              print_string(target_names[i]);
+              print_string("\n");
+            }
+        }
     }
   for(int i=0;i<num_targets_found;++i)
     {
@@ -332,7 +327,9 @@ static void do_human_move(int side)
   while(!good)
     {
       print_string("PLEASE CHOOSE ONE:  ");
-      scanw("%u", &move);
+      char buf[32];
+      getnstr(buf, 32);
+      sscanf(buf, "%u", &move);
       if(move>0 && move<5)
         good=true;
     }
@@ -369,7 +366,7 @@ void global_thermonuclear_war(void)
       print_string(map[i]);
       print_string("\n");
     }
-  
+
   /* get the side the user wants to be on */
   print_string("\nWHICH SIDE DO YOU WANT?\n\n  1.  UNITED STATES\n  2.  SOVIET UNION\n\n");
   bool good=false;
@@ -377,7 +374,9 @@ void global_thermonuclear_war(void)
   while(!good)
     {
       print_string("PLEASE CHOOSE ONE:  ");
-      scanw("%u", &side);
+      char buf[32];
+      getnstr(buf, 31);
+      sscanf(buf, "%u", &side);
       if(side==1 || side==2)
         good=true;
     }
