@@ -66,18 +66,16 @@ void refresh(void)
 int getnstr(char* buf, int max)
 {
   printf("reading...\n");
-  memset(buf, 0, sizeof(buf));
-  int back=0;
-  char c=0;
-  do {
-    read(pipes[out_fd][0], &c, 1);
-    if(c!='\n')
-      {
-
-        buf[back]=c;
-        ++back;
-      }
-  }
-  while(back<max && c!='\n');
+  memset(buf, 0, max);
+  int ret=read(pipes[out_fd][0], buf, max);
+  if(ret!=0)
+    {
+      printf("last char is 0x%02x\n", buf[strlen(buf)-1]);
+      /* remove the newline */
+      buf[strlen(buf)-2]='\0';
+    }
+  printf("got string \"%s\"\n", buf);
+  if(ret<0)
+    return ERR;
   return OK;
 }
