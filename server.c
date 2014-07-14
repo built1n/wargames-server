@@ -1,4 +1,4 @@
-/*
+x/*
  *   WarGames - a WOPR emulator written in C
  *   Copyright (C) 2014 Franklin Wei
  *
@@ -128,7 +128,7 @@ int main(int argc, char* argv[])
                       printf("error accepting connection.\n");
                       return 1;
                     }
-                  printf("new connection.\n");
+                  printf("new connection from \n");
                   FD_SET(new, &active_fd_set);
                   int ret=pipe(pipes[new]);
                   if(ret<0)

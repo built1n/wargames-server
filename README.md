@@ -1,5 +1,4 @@
 WarGames
 ========
 
-A W.O.P.R. emulator.
-For the uninitiated, read the TRANSCRIPT file.
+Ever wanted your very own WOPR? This is what you're looking for!

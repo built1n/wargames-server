@@ -1,4 +1,29 @@
+# Object files
 *.o
-*~
-wargames
+*.ko
+*.obj
+*.elf
+
+# Junk files
 a.out
+wargames
+*~
+
+# Libraries
+*.lib
+*.a
+
+# Shared objects (inc. Windows DLLs)
+*.dll
+*.so
+*.so.*
+*.dylib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+>>>>>>> 242a6e2d8edd375da6b02d7e2ece1b41d0f8de54
