@@ -40,6 +40,7 @@ void print_string(const char* str) /* print string, slowly */
     {
       write(out_fd, &str[i], 1);
       fsync(out_fd);
+      usleep(SLEEP_TIME);
       ++i;
     }
 }
@@ -58,6 +59,9 @@ void remove_punct(char* buf)
 }
 void clear(void)
 {
+  unsigned char clear_sequence[]={ 0x1B, 'c' };
+  write(out_fd, clear_sequence, sizeof(clear_sequence));
+  fsync(out_fd);
 }
 void refresh(void)
 {
@@ -65,16 +69,15 @@ void refresh(void)
 }
 int getnstr(char* buf, int max)
 {
-  printf("reading...\n");
   memset(buf, 0, max);
   int ret=read(pipes[out_fd][0], buf, max);
   if(ret!=0)
     {
-      printf("last char is 0x%02x\n", buf[strlen(buf)-1]);
-      /* remove the newline */
-      buf[strlen(buf)-2]='\0';
+      /* prevent buffer underflow */
+      if(strlen(buf)-2>=0)
+        /* remove the newline */
+        buf[strlen(buf)-2]='\0';
     }
-  printf("got string \"%s\"\n", buf);
   if(ret<0)
     return ERR;
   return OK;

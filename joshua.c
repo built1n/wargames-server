@@ -46,7 +46,6 @@ void random_stuff(void) /* print random junk on the screen for about 3 seconds *
 }
 void be_joshua(int fd)
 {
-  printf("joshua started.\n");
   out_fd=fd;
   clear();
   signal(SIGINT, &cleanup);
@@ -80,7 +79,7 @@ void be_joshua(int fd)
     else if(ret==ERR || strcmp(buf, "joshua") && !gamesPhase)
       {
         print_string("\nIDENTIFICATION NOT RECOGNIZED BY SYSTEM\n--CONNECTION TERMINATED--");
-        return;
+        exit(EXIT_SUCCESS);
       }
   } while(strcmp(buf, "joshua") || gamesPhase);
   random_stuff();
@@ -97,10 +96,11 @@ void be_joshua(int fd)
           print_string("\n\n");
           print_string(exit_responses[rand()%sizeof(exit_responses)/sizeof(const char*)]);
           print_string("\n--CONNECTION TERMINATED--");
-          return;
+          exit(EXIT_SUCCESS);
         }
     }
   print_string("\n\nHOW ARE YOU FEELING TODAY?\n\n");
   refresh();
   do_chatbot();
+  exit(EXIT_SUCCESS);
 }

@@ -1,4 +1,4 @@
-x/*
+/*
  *   WarGames - a WOPR emulator written in C
  *   Copyright (C) 2014 Franklin Wei
  *
@@ -18,17 +18,18 @@ x/*
  *   Contact the author at contact@fwei.tk
  */
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <unistd.h>
-#include <errno.h>
-#include <netinet/in.h>
-#include <netdb.h>
-#include <string.h>
-#include <stdlib.h>
-#include <stdio.h>
-#include <signal.h>
 #include "joshua.h"
+#include <errno.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <signal.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/socket.h>
+#include <sys/types.h>
+#include <unistd.h>
+
 int server_socket;
 uint16_t port;
 int pipes[FD_SETSIZE][2];
@@ -58,9 +59,15 @@ int process_data(int fd)
   char buf[1024];
   memset(buf, 0, sizeof(buf));
   int ret=read(fd, buf, sizeof(buf));
+  char ctrl_c[]={0xff, 0xf4, 0xff, 0xfd, 0x06, 0x00};
+  if(strcmp(ctrl_c, buf)==0)
+    {
+      printf("Got CTRL-C from client.\n");
+      return -1;
+    }
   if(ret<0) /* error */
     {
-      printf("error in read()\n");
+      printf("Error in read()\n");
       return -1;
     }
   if(ret==0)
@@ -80,7 +87,6 @@ void serv_cleanup()
   printf("preparing to exit...\n");
   fflush(stdout);
   shutdown(server_socket, SHUT_RDWR);
-  close(server_socket);
 }
 int main(int argc, char* argv[])
 {
@@ -89,8 +95,8 @@ int main(int argc, char* argv[])
       printf("Usage: %s PORT\n", argv[0]);
       return 2;
     }
-  printf("starting server...\n");
   port=atoi(argv[1]);
+  printf("Initializing server on port %u...\n", port);
   signal(SIGINT, &serv_cleanup);
   int sock=make_server_socket(port);
   server_socket=sock;
@@ -98,19 +104,19 @@ int main(int argc, char* argv[])
   struct sockaddr_in client;
   if(listen(sock, 1)<0)
     {
-      printf("error listening.\n");
+      printf("Error opening socket.\n");
       return 1;
     }
   FD_ZERO(&active_fd_set);
   FD_SET(sock, &active_fd_set);
-  printf("listening on port %d\n", port);
+  printf("Server ready, listening on port %d.\n", port);
   while(1)
     {
       read_fd_set=active_fd_set;
       int ret=select(FD_SETSIZE, &read_fd_set, 0,0,0);
       if(ret<0)
         {
-          printf("select() returned error.\n");
+          printf("Error in select().\n");
           return 1;
         }
       for(int i=0;i<FD_SETSIZE;++i)
@@ -125,21 +131,22 @@ int main(int argc, char* argv[])
                   new=accept(sock, (struct sockaddr*) &client, &size);
                   if(new<0)
                     {
-                      printf("error accepting connection.\n");
+                      printf("Error accepting new connection.\n");
                       return 1;
                     }
-                  printf("new connection from \n");
+                  printf("New connection.\n");
                   FD_SET(new, &active_fd_set);
                   int ret=pipe(pipes[new]);
                   if(ret<0)
                     {
-                      printf("pipe error.\n");
+                      printf("Pipe error.\n");
                     }
                   pid_t pid=fork();
                   if(pid==0) /* child */
                     {
                       be_joshua(new);
-                      close(new);
+                      printf("Client exits\n");
+                      shutdown(new, SHUT_RDWR);
                       FD_CLR(new, &active_fd_set);
                       exit(0);
                     }
@@ -149,7 +156,7 @@ int main(int argc, char* argv[])
                   /* data from existing connection */
                   if(process_data(i)<0)
                     {
-                      close(i);
+                      shutdown(i, SHUT_RDWR);
                       FD_CLR(i, &active_fd_set);
                     }
                 }

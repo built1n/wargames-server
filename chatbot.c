@@ -104,7 +104,7 @@ void do_chatbot(void)
                   print_string("\n\n");
                   print_string(exit_responses[rand()%(sizeof(exit_responses)/sizeof(const char*))]);
                   print_string("\n--CONNECTION TERMINATED--");
-                  return;
+                  exit(EXIT_SUCCESS);
                 }
             }
           for(int i=0;i<sizeof(greetings_triggers)/sizeof(const char*);++i)
