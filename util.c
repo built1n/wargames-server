@@ -69,6 +69,7 @@ void refresh(void)
 }
 int getnstr(char* buf, int max)
 {
+  echo_on();
   memset(buf, 0, max);
   int ret=read(pipes[out_fd][0], buf, max);
   if(ret!=0)
@@ -81,4 +82,17 @@ int getnstr(char* buf, int max)
   if(ret<0)
     return ERR;
   return OK;
+  echo_off();
+}
+void echo_off(void)
+{
+  unsigned char echo_off[]={0xff, 254, 1};
+  write(out_fd, echo_off, 3);
+  fsync(out_fd);
+}
+void echo_on(void)
+{
+  unsigned char echo_on[]={0xff, 253, 1};
+  write(out_fd, echo_on, 3);
+  fsync(out_fd);
 }
