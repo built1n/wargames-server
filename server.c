@@ -127,10 +127,10 @@ void handle_command(unsigned char* buf, int buflen, int connection)
       }
     }
   /* unimplemented command, just deny it */
-  unsigned char deny_cmd[3]={IAC, DONT, opt};
-  if(opt==SGA)
+  unsigned char deny_cmd[3]={IAC, WONT, opt};
+  if(opt==LINEMODE)
     {
-      deny_cmd[1]=DO;
+      deny_cmd[1]=WILL;
     }
   write(connection, deny_cmd, sizeof(deny_cmd));
   fsync(connection);
@@ -190,10 +190,14 @@ void serv_cleanup()
 }
 void setup_new_connection(int fd)
 {
-  unsigned char do_naws[]={IAC, DO, NAWS};
-  write(fd, do_naws, sizeof(do_naws));
-  unsigned char dont_echo[]={IAC, DONT, ECHO};
+  unsigned char will_naws[]={IAC, WILL, NAWS};
+  write(fd, will_naws, sizeof(will_naws));
+  unsigned char dont_echo[]={IAC, WONT, ECHO};
   write(fd, dont_echo, sizeof(dont_echo));
+  unsigned char dont_sga[]={IAC, WONT, SGA};
+  write(fd, dont_sga, sizeof(dont_sga));
+  unsigned char will_linemode[]={IAC, WILL, LINEMODE};
+  write(fd, will_linemode, sizeof(will_linemode));
   memset(&connection_data[fd], 0, sizeof(struct connection_data_t));
   debugf("New connection set up.\n");
 }
