@@ -25,7 +25,8 @@ const char* stage1_triggers[] = {
   "im fine how are you",
   "i am fine",
   "i am fine how are you",
-  "how are you"
+  "how are you",
+  "fine"
 };
 const char* stage2_triggers[] = {
   "people sometimes make mistakes",

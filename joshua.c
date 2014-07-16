@@ -55,7 +55,18 @@ void be_joshua(int fd)
   attron(COLOR_PAIR(1));*/
   bool gamesPhase=false;
   char buf[33];
-  print_string("\n\n");
+  if(connection_data[out_fd].know_termsize==1)
+    {
+      /* the terminal size could change while the spaces are being printed, so use a while loop */
+      int n=0;
+      while(n<connection_data[out_fd].term_width*2)
+        {
+          print_string(" ");
+          ++n;
+        }
+    }
+  else
+    print_string("\n\n");
   do {
     if(!gamesPhase)
       print_string("LOGON: ");

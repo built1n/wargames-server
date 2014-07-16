@@ -20,7 +20,7 @@
 
 #ifndef WOPR_STRINGS
 #define WOPR_STRINGS
-const char* stage1_triggers[5];
+const char* stage1_triggers[6];
 const char* stage2_triggers[6];
 const char* stage3_triggers[4];
 const char* stage4_triggers[7];

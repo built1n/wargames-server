@@ -19,8 +19,10 @@
  */
 
 #include "joshua.h"
+#include "telnet.h"
 #include "util.h"
 #include <errno.h>
+#include <fcntl.h>
 #include <netdb.h>
 #include <netinet/in.h>
 #include <signal.h>
@@ -28,13 +30,24 @@
 #include <stdlib.h>
 #include <string.h>
 #include <sys/socket.h>
+#include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <stdarg.h>
 #define DEFAULT_PORT 23
+#define LOG_LOCATION "/var/log/wopr"
 int server_socket;
 uint16_t port;
 int pipes[FD_SETSIZE][2];
 struct connection_data_t connection_data[FD_SETSIZE];
+int debugf(const char* fmt, ...)
+{
+  va_list l;
+  va_start(l, fmt);
+  int ret=vprintf(fmt, l);
+  va_end(l);
+  return ret;
+}
 int make_server_socket(uint16_t port)
 {
   int sock;
@@ -42,7 +55,7 @@ int make_server_socket(uint16_t port)
   sock=socket(AF_INET, SOCK_STREAM, 0);
   if(sock<0)
     {
-      printf("error opening socket.\n");
+      debugf("error opening socket.\n");
       return -1;
     }
   name.sin_family=AF_INET;
@@ -51,140 +64,144 @@ int make_server_socket(uint16_t port)
   int ret=bind(sock, (struct sockaddr*) &name, sizeof(name));
   if(ret<0)
     {
-      printf("error binding to port %d\n", port);
+      debugf("error binding to port %d\n", port);
       return -1;
     }
   return sock;
+}
+char pending_buffer[1024];
+void handle_command(unsigned char* buf, int buflen, int connection)
+{
+  unsigned char cmd, opt;
+  if(buflen<2)
+    {
+      debugf("Invalid command.\n");
+      return;
+    }
+  cmd=buf[1];
+  /* handle two-byte commands */
+  switch(cmd)
+    {
+    case AYT:
+      {
+        unsigned char iac_nop[]={IAC, NOP};
+        write(connection, iac_nop, sizeof(iac_nop));
+        return;
+      }
+    }
+  if(buflen<3)
+    {
+      debugf("Invalid command.\n");
+      return;
+    }
+  opt=buf[2];
+  switch(cmd)
+    {
+    case SB:
+      {
+        switch(opt)
+          {
+          case NAWS:
+            {
+              /* format of NAWS data: IAC SB NAWS W W H H IAC SE */
+              uint16_t height, width;
+              uint8_t height_hi, height_lo, width_hi, width_lo;
+              if(buflen<9)
+                {
+                  debugf("IAC SB NAWS command too short!\n");
+                  return;
+                }
+              width_hi=buf[3];
+              width_lo=buf[4];
+              height_hi=buf[5];
+              height_lo=buf[6];
+              height=(height_hi<<8)|height_lo;
+              width=(width_hi<<8)|width_lo;
+              connection_data[connection].know_termsize=(height==0 || width==0)?0:1;
+              connection_data[connection].term_height=height;
+              connection_data[connection].term_width=width;
+              return;
+            }
+          }
+        break;
+      }
+    }
+  /* unimplemented command, just deny it */
+  unsigned char deny_cmd[3]={IAC, DONT, opt};
+  if(opt==SGA)
+    {
+      deny_cmd[1]=DO;
+    }
+  write(connection, deny_cmd, sizeof(deny_cmd));
+  fsync(connection);
+  return;
 }
 int process_data(int fd)
 {
   unsigned char buf[1024];
   memset(buf, 0, sizeof(buf));
   int ret=read(fd, buf, sizeof(buf));
+  debugf("Byte dump of data: ");
+  for(int i=0;buf[i];++i)
+    {
+      debugf("%d ", buf[i]);
+    }
+  debugf("\n");
   char ctrl_c[]={0xff, 0xf4, 0xff, 0xfd, 0x06, 0x00};
   if(strcmp(ctrl_c, buf)==0)
     {
-      printf("Got CTRL-C from client.\n");
+      debugf("Got CTRL-C from client.\n");
       return -1;
     }
   if(ret<0) /* error */
     {
-      printf("Error in read()\n");
+      debugf("Error in read()\n");
       return -1;
     }
   if(ret==0)
     {
-      printf("EOF from client\n");
+      debugf("EOF from client\n");
       return -1;
     }
   else
     {
-      printf("Client sends: %s\n", buf);
-      if(strlen(buf)>0)
+      debugf("Client sends: %s\n", buf);
+      int buflen=strlen(buf);
+      if(buflen>0) /* no need to write nothing to the input stream :D */
         {
           if(buf[0]==0xff)
             {
-              printf("String is command.\n");
-              printf("Hex dump: ");
-              for(int i=0;buf[i];++i)
-                {
-                  printf("%d ", buf[i]);
-                }
-              if(strlen(buf)<2)
-                {
-                  printf("Bad command (length<3).\n");
-                  return 0; /* not a fatal error */
-                }
-              unsigned char cmd=buf[1];
-#define WILL 251
-#define WONT 252
-#define DO 253
-#define DONT 254
-#define SB 250
-#define SE 240
-#define AYT 246
-#define NAWS 31
-              unsigned char opt=(strlen(buf)==2)?0:buf[2];
-              unsigned char nop[2]={0xff, 241};
-              switch(cmd)
-                {
-                case AYT:
-                  /* respond with IAC NOP */
-                  write(fd, nop, 2);
-                  break;
-                case WILL:
-                case DO:
-                  if(cmd==NAWS)
-                    {
-                      printf("Client offers NAWS\n");
-                    }
-                  else if(cmd==1)
-                    {
-                      printf("Client offers echo.\n");
-                    }
-                  break;
-                case WONT:
-                case DONT:
-                  if(cmd==NAWS)
-                    {
-                      printf("Client denies NAWS.\n");
-                    }
-                  else if(cmd==1)
-                    {
-                      printf("Client denies echo.\n");
-                    }
-                  break;
-                default:
-                  printf("Unknown command.\n");
-                  break;
-                }
-              if(cmd==SB)
-                {
-                  if(opt==NAWS)
-                    {
-                      if(strlen(buf)>=9)
-                        {
-                          uint16_t width, height;
-                          uint8_t width_hi, width_lo, height_hi, height_lo;
-                          width_hi=buf[3];
-                          width_lo=buf[4];
-                          height_hi=buf[5];
-                          height_lo=buf[6];
-                          width=(width_hi<<8)|width_lo;
-                          height=(height_hi<<8)|height_lo;
-                          connection_data[fd].know_termsize=(width==0 || height==0)?0:1; /* if any dimension is zero, unknown */
-                          connection_data[fd].term_height=height;
-                          connection_data[fd].term_width=width;
-                          printf("Client window is %dx%d\n", width, height);
-                        }
-                    }
-                }
+              handle_command(buf, buflen, fd);
             }
-          else
+          else if(strlen(buf)>0)
             {
-              write(pipes[fd][1], buf, strlen(buf));
+              write(pipes[fd][1],buf,strlen(buf));
             }
-        }
+      }
       return 0;
     }
+  return 0;
 }
 void serv_cleanup()
 {
-  printf("preparing to exit...\n");
+  debugf("\nPreparing to exit...\n");
   fflush(stdout);
   shutdown(server_socket, SHUT_RDWR);
 }
 void setup_new_connection(int fd)
 {
-  unsigned char will_naws[]={0xff, 251, 31};
-  write(fd, will_naws, sizeof(will_naws));
+  unsigned char do_naws[]={IAC, DO, NAWS};
+  write(fd, do_naws, sizeof(do_naws));
+  unsigned char dont_echo[]={IAC, DONT, ECHO};
+  write(fd, dont_echo, sizeof(dont_echo));
   memset(&connection_data[fd], 0, sizeof(struct connection_data_t));
+  debugf("New connection set up.\n");
 }
 int main(int argc, char* argv[])
 {
   if(argc!=2)
     {
-      printf("Listening on default port: %d\n", DEFAULT_PORT);
+      debugf("Listening on default port: %d\n", DEFAULT_PORT);
       port=DEFAULT_PORT;
     }
   else
@@ -192,12 +209,12 @@ int main(int argc, char* argv[])
       int port2=atoi(argv[1]);
       if(port2<0 || port2>65535)
         {
-          printf("Port out of range.\n");
+          debugf("Port out of range.\n");
           return 2;
         }
       port=atoi(argv[1]);
     }
-  printf("Initializing server on port %u...\n", port);
+  debugf("Initializing server on port %u...\n", port);
   signal(SIGINT, &serv_cleanup);
   int sock=make_server_socket(port);
   server_socket=sock;
@@ -205,19 +222,20 @@ int main(int argc, char* argv[])
   struct sockaddr_in client;
   if(listen(sock, 1)<0)
     {
-      printf("Error opening socket.\n");
+      debugf("Error opening socket.\n");
       return 1;
     }
   FD_ZERO(&active_fd_set);
   FD_SET(sock, &active_fd_set);
-  printf("Server ready, listening on port %d.\n", port);
+  debugf("Server ready, listening on port %d.\n", port);
+  debugf("Maximum clients: %d\n", FD_SETSIZE);
   while(1)
     {
       read_fd_set=active_fd_set;
       int ret=select(FD_SETSIZE, &read_fd_set, 0,0,0);
       if(ret<0)
         {
-          printf("Error in select().\n");
+          debugf("Error in select().\n");
           return 1;
         }
       for(int i=0;i<FD_SETSIZE;++i)
@@ -232,15 +250,15 @@ int main(int argc, char* argv[])
                   new=accept(sock, (struct sockaddr*) &client, &size);
                   if(new<0)
                     {
-                      printf("Error accepting new connection.\n");
+                      debugf("Error accepting new connection.\n");
                       return 1;
                     }
-                  printf("New connection.\n");
+                  debugf("New connection, number %d.\n", new);
                   FD_SET(new, &active_fd_set);
                   int ret=pipe(pipes[new]);
                   if(ret<0)
                     {
-                      printf("Pipe error.\n");
+                      debugf("Pipe error.\n");
                     }
                   pid_t pid=fork();
                   if(pid==0) /* child */
@@ -248,7 +266,7 @@ int main(int argc, char* argv[])
                       /* set up the connection */
                       setup_new_connection(new);
                       be_joshua(new);
-                      printf("Client exits\n");
+                      debugf("Client exits\n");
                       shutdown(new, SHUT_RDWR);
                       FD_CLR(new, &active_fd_set);
                       exit(0);
