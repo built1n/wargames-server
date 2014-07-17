@@ -55,7 +55,7 @@ int make_server_socket(uint16_t port)
   sock=socket(AF_INET, SOCK_STREAM, 0);
   if(sock<0)
     {
-      debugf("error opening socket.\n");
+      debugf("FATAL: Error opening socket.\n");
       return -1;
     }
   name.sin_family=AF_INET;
@@ -64,7 +64,7 @@ int make_server_socket(uint16_t port)
   int ret=bind(sock, (struct sockaddr*) &name, sizeof(name));
   if(ret<0)
     {
-      debugf("error binding to port %d\n", port);
+      debugf("FATAL: Error binding to port %d\n", port);
       return -1;
     }
   return sock;
@@ -150,7 +150,7 @@ int process_data(int fd)
   char ctrl_c[]={0xff, 0xf4, 0xff, 0xfd, 0x06, 0x00};
   if(strcmp(ctrl_c, buf)==0)
     {
-      debugf("Got CTRL-C from client.\n");
+      debugf("Got CTRL-C from client %d.\n", fd);
       return -1;
     }
   if(ret<0) /* error */
@@ -160,12 +160,12 @@ int process_data(int fd)
     }
   if(ret==0)
     {
-      debugf("EOF from client\n");
+      debugf("EOF from client %d.\n", fd);
       return -1;
     }
   else
     {
-      debugf("Client sends: %s\n", buf);
+      debugf("Client %d sends: %s\n", fd, buf);
       int buflen=strlen(buf);
       if(buflen>0) /* no need to write nothing to the input stream :D */
         {
@@ -192,7 +192,9 @@ void setup_new_connection(int fd)
 {
   unsigned char will_naws[]={IAC, WILL, NAWS};
   write(fd, will_naws, sizeof(will_naws));
-  unsigned char dont_echo[]={IAC, WONT, ECHO};
+  unsigned char dont_echo[]={IAC, WILL, ECHO};
+  write(fd, dont_echo, sizeof(dont_echo));
+  dont_echo[1]=DONT;
   write(fd, dont_echo, sizeof(dont_echo));
   unsigned char dont_sga[]={IAC, WONT, SGA};
   write(fd, dont_sga, sizeof(dont_sga));
@@ -213,7 +215,7 @@ int main(int argc, char* argv[])
       int port2=atoi(argv[1]);
       if(port2<0 || port2>65535)
         {
-          debugf("Port out of range.\n");
+          debugf("FATAL: Port out of range.\n");
           return 2;
         }
       port=atoi(argv[1]);
@@ -226,7 +228,7 @@ int main(int argc, char* argv[])
   struct sockaddr_in client;
   if(listen(sock, 1)<0)
     {
-      debugf("Error opening socket.\n");
+      debugf("FATAL: Error opening socket.\n");
       return 1;
     }
   FD_ZERO(&active_fd_set);
@@ -254,7 +256,7 @@ int main(int argc, char* argv[])
                   new=accept(sock, (struct sockaddr*) &client, &size);
                   if(new<0)
                     {
-                      debugf("Error accepting new connection.\n");
+                      debugf("FATAL: Error accepting new connection.\n");
                       return 1;
                     }
                   debugf("New connection, number %d.\n", new);
@@ -265,6 +267,11 @@ int main(int argc, char* argv[])
                       debugf("Pipe error.\n");
                     }
                   pid_t pid=fork();
+                  if(pid<0)
+                    {
+                      debugf("FATAL: Fork error.\n");
+                      return 1;
+                    }
                   if(pid==0) /* child */
                     {
                       /* set up the connection */
