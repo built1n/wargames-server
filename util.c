@@ -38,7 +38,10 @@ void print_string(const char* str) /* print string, slowly */
   int i=0;
   while(str[i])
     {
-      write(out_fd, &str[i], 1);
+      if(str[i]=='\n')
+	write(out_fd, "\r\n", 2);
+      else
+	write(out_fd, &str[i], 1);
       fsync(out_fd);
       usleep(SLEEP_TIME);
       ++i;
