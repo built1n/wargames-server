@@ -103,6 +103,7 @@ void handle_command(unsigned char* buf, int buflen, int connection)
           {
           case NAWS:
             {
+              printf("NAWS command recieved.\n");
               /* format of NAWS data: IAC SB NAWS W W H H IAC SE */
               uint16_t height, width;
               uint8_t height_hi, height_lo, width_hi, width_lo;
@@ -132,8 +133,10 @@ void handle_command(unsigned char* buf, int buflen, int connection)
     {
       deny_cmd[1]=WILL;
     }
+  /*
   write(connection, deny_cmd, sizeof(deny_cmd));
   fsync(connection);
+  */
   return;
 }
 int process_data(int fd)
@@ -141,6 +144,7 @@ int process_data(int fd)
   unsigned char buf[1024];
   memset(buf, 0, sizeof(buf));
   int ret=read(fd, buf, sizeof(buf));
+  debugf("Client %d sends: %s\n", fd, buf);
   debugf("Byte dump of data: ");
   for(int i=0;buf[i];++i)
     {
@@ -165,7 +169,6 @@ int process_data(int fd)
     }
   else
     {
-      debugf("Client %d sends: %s\n", fd, buf);
       int buflen=strlen(buf);
       if(buflen>0) /* no need to write nothing to the input stream :D */
         {
@@ -190,16 +193,22 @@ void serv_cleanup()
 }
 void setup_new_connection(int fd)
 {
-  unsigned char will_naws[]={IAC, WILL, NAWS};
+  unsigned char will_naws[]={IAC, DO, NAWS};
   write(fd, will_naws, sizeof(will_naws));
-  unsigned char dont_echo[]={IAC, WILL, ECHO};
+  will_naws[1]=WILL;
+  write(fd, will_naws, sizeof(will_naws));
+
+  unsigned char dont_echo[]={IAC, DONT, ECHO};
   write(fd, dont_echo, sizeof(dont_echo));
-  dont_echo[1]=DONT;
+  dont_echo[1]=WONT;
   write(fd, dont_echo, sizeof(dont_echo));
+
   unsigned char dont_sga[]={IAC, WONT, SGA};
   write(fd, dont_sga, sizeof(dont_sga));
+
   unsigned char will_linemode[]={IAC, WILL, LINEMODE};
   write(fd, will_linemode, sizeof(will_linemode));
+
   memset(&connection_data[fd], 0, sizeof(struct connection_data_t));
   debugf("New connection set up.\n");
 }
@@ -256,8 +265,8 @@ int main(int argc, char* argv[])
                   new=accept(sock, (struct sockaddr*) &client, &size);
                   if(new<0)
                     {
-                      debugf("FATAL: Error accepting new connection.\n");
-                      return 1;
+                      debugf("Error accepting new connection.\n");
+                      continue;
                     }
                   debugf("New connection, number %d.\n", new);
                   FD_SET(new, &active_fd_set);
@@ -265,12 +274,13 @@ int main(int argc, char* argv[])
                   if(ret<0)
                     {
                       debugf("Pipe error.\n");
+                      continue;
                     }
                   pid_t pid=fork();
                   if(pid<0)
                     {
-                      debugf("FATAL: Fork error.\n");
-                      return 1;
+                      debugf("Fork error.\n");
+                      continue;
                     }
                   if(pid==0) /* child */
                     {
@@ -290,6 +300,7 @@ int main(int argc, char* argv[])
                     {
                       shutdown(i, SHUT_RDWR);
                       FD_CLR(i, &active_fd_set);
+                      /* should kill the child associated with this connection, too */
                     }
                 }
             }

@@ -19,6 +19,7 @@
  */
 
 #include "strings.h"
+#include "telnet.h"
 #include "util.h"
 #include <ctype.h>
 #include <string.h>
@@ -39,9 +40,9 @@ void print_string(const char* str) /* print string, slowly */
   while(str[i])
     {
       if(str[i]=='\n')
-	write(out_fd, "\r\n", 2);
+        write(out_fd, "\r\n", 2);
       else
-	write(out_fd, &str[i], 1);
+        write(out_fd, &str[i], 1);
       fsync(out_fd);
       usleep(SLEEP_TIME);
       ++i;
@@ -89,13 +90,15 @@ int getnstr(char* buf, int max)
 }
 void echo_off(void)
 {
-  unsigned char echo_off[]={0xff, 254, 1};
+  unsigned char echo_off[]={IAC, WILL, ECHO};
+  write(out_fd, echo_off, 3);
+  echo_off[1]=DONT;
   write(out_fd, echo_off, 3);
   fsync(out_fd);
 }
 void echo_on(void)
 {
-  unsigned char echo_on[]={0xff, 253, 1};
+  unsigned char echo_on[]={IAC, DO, ECHO};
   write(out_fd, echo_on, 3);
   fsync(out_fd);
 }

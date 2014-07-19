@@ -20,5 +20,5 @@
 #define ECHO 1
 #define TERMTYPE 24
 #define NAWS 31
-#define SURPRESS_LOCAL_ECHO 0x2D
+#define SURPRESS_LOCAL_ECHO 45
 #define LINEMODE 34
