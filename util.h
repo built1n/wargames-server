@@ -19,15 +19,19 @@
  */
 
 #define SLEEP_TIME 5000
+
 #include <stdint.h>
 #include <stdlib.h>
+
 struct connection_data_t {
-  int naws_enable:1;
-  int know_termsize:1;
+  int naws_enable : 1;
+  int know_termsize : 1;
   uint16_t term_height;
   uint16_t term_width;
 };
+
 extern struct connection_data_t connection_data[FD_SETSIZE];
+
 void allLower(char*);
 void print_string(const char*);
 void remove_punct(char*);
@@ -36,6 +40,8 @@ void clear(void);
 int getnstr(char*, int);
 void echo_off(void);
 void echo_on(void);
+
 #define ERR 1
 #define OK 0
+
 extern int out_fd;

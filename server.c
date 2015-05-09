@@ -21,6 +21,7 @@
 #include "joshua.h"
 #include "telnet.h"
 #include "util.h"
+
 #include <errno.h>
 #include <fcntl.h>
 #include <netdb.h>
@@ -34,273 +35,322 @@
 #include <sys/types.h>
 #include <unistd.h>
 #include <stdarg.h>
+
 #define DEFAULT_PORT 23
 #define LOG_LOCATION "/var/log/wopr"
+
 int server_socket;
 uint16_t port;
+
 int pipes[FD_SETSIZE][2];
+
 struct connection_data_t connection_data[FD_SETSIZE];
+
 int debugf(const char* fmt, ...)
 {
-  va_list l;
-  va_start(l, fmt);
-  int ret=vprintf(fmt, l);
-  va_end(l);
-  return ret;
+    va_list l;
+    va_start(l, fmt);
+    int ret = vprintf(fmt, l);
+    va_end(l);
+    return ret;
 }
+
 int make_server_socket(uint16_t port)
 {
-  int sock;
-  struct sockaddr_in name;
-  sock=socket(AF_INET, SOCK_STREAM, 0);
-  if(sock<0)
+    int sock;
+    struct sockaddr_in name;
+    sock = socket(AF_INET, SOCK_STREAM, 0);
+    if(sock < 0)
     {
-      debugf("FATAL: Error opening socket.\n");
-      return -1;
+        debugf("FATAL: Error opening socket.\n");
+        return -1;
     }
-  name.sin_family=AF_INET;
-  name.sin_port=htons(port);
-  name.sin_addr.s_addr=htonl(INADDR_ANY);
-  int ret=bind(sock, (struct sockaddr*) &name, sizeof(name));
-  if(ret<0)
+
+    const int opt_val = 1;
+
+    setsockopt(sock, SOL_SOCKET, SO_REUSEADDR, &opt_val, sizeof(opt_val));
+    setsockopt(sock, SOL_SOCKET, SO_REUSEPORT, &opt_val, sizeof(opt_val));
+
+    name.sin_family = AF_INET;
+    name.sin_port = htons(port);
+    name.sin_addr.s_addr = htonl(INADDR_ANY);
+    int ret = bind(sock, (struct sockaddr*) &name, sizeof(name));
+    if(ret < 0)
     {
-      debugf("FATAL: Error binding to port %d\n", port);
-      return -1;
+        debugf("FATAL: Error binding to port %d\n", port);
+        return -1;
     }
-  return sock;
+
+    return sock;
 }
+
 char pending_buffer[1024];
+
 void handle_command(unsigned char* buf, int buflen, int connection)
 {
-  unsigned char cmd, opt;
-  if(buflen<2)
+    unsigned char cmd, opt;
+    if(buflen < 2)
     {
-      debugf("Invalid command.\n");
-      return;
+        debugf("Invalid command.\n");
+        return;
     }
-  cmd=buf[1];
-  /* handle two-byte commands */
-  switch(cmd)
+    cmd = buf[1];
+
+    /* handle two-byte commands */
+    switch(cmd)
     {
     case AYT:
-      {
-        unsigned char iac_nop[]={IAC, NOP};
+    {
+        unsigned char iac_nop[] = {IAC, NOP};
         write(connection, iac_nop, sizeof(iac_nop));
         return;
-      }
     }
-  if(buflen<3)
+    }
+
+    if(buflen < 3)
     {
-      debugf("Invalid command.\n");
-      return;
+        debugf("Invalid command.\n");
+        return;
     }
-  opt=buf[2];
-  switch(cmd)
+
+    opt = buf[2];
+    switch(cmd)
     {
     case SB:
-      {
-        switch(opt)
-          {
-          case NAWS:
-            {
-              printf("NAWS command recieved.\n");
-              /* format of NAWS data: IAC SB NAWS W W H H IAC SE */
-              uint16_t height, width;
-              uint8_t height_hi, height_lo, width_hi, width_lo;
-              if(buflen<9)
-                {
-                  debugf("IAC SB NAWS command too short!\n");
-                  return;
-                }
-              width_hi=buf[3];
-              width_lo=buf[4];
-              height_hi=buf[5];
-              height_lo=buf[6];
-              height=(height_hi<<8)|height_lo;
-              width=(width_hi<<8)|width_lo;
-              connection_data[connection].know_termsize=(height==0 || width==0)?0:1;
-              connection_data[connection].term_height=height;
-              connection_data[connection].term_width=width;
-              return;
-            }
-          }
-        break;
-      }
-    }
-  /* unimplemented command, just deny it */
-  unsigned char deny_cmd[3]={IAC, WONT, opt};
-  if(opt==LINEMODE)
     {
-      deny_cmd[1]=WILL;
+        switch(opt)
+        {
+        case NAWS:
+        {
+            printf("NAWS command recieved.\n");
+            /* format of NAWS data: IAC SB NAWS W W H H IAC SE */
+            uint16_t height, width;
+            uint8_t height_hi, height_lo, width_hi, width_lo;
+
+            if(buflen < 9)
+            {
+                debugf("IAC SB NAWS command too short!\n");
+                return;
+            }
+
+            width_hi = buf[3];
+            width_lo = buf[4];
+            height_hi = buf[5];
+            height_lo = buf[6];
+            height = (height_hi << 8) | height_lo;
+            width = (width_hi << 8) | width_lo;
+            connection_data[connection].know_termsize = (height == 0 || width == 0) ? 0 : 1;
+            connection_data[connection].term_height = height;
+            connection_data[connection].term_width = width;
+            return;
+        }
+        }
+        break;
     }
-  /*
-  write(connection, deny_cmd, sizeof(deny_cmd));
-  fsync(connection);
-  */
-  return;
+    }
+
+    if((opt == LINEMODE && cmd == WILL) || (opt == NAWS))
+    {
+        /* avoid an endless negiociation loop */
+        return;
+    }
+
+    /* unimplemented command, just deny it */
+    unsigned char deny_cmd[3] = {IAC, WONT, opt};
+
+    write(connection, deny_cmd, sizeof(deny_cmd));
+    fsync(connection);
+    return;
 }
+
 int process_data(int fd)
 {
-  unsigned char buf[1024];
-  memset(buf, 0, sizeof(buf));
-  int ret=read(fd, buf, sizeof(buf));
-  debugf("Client %d sends: %s\n", fd, buf);
-  debugf("Byte dump of data: ");
-  for(int i=0;buf[i];++i)
+    unsigned char buf[1024];
+    memset(buf, 0, sizeof(buf));
+    int ret = read(fd, buf, sizeof(buf));
+
+    debugf("Client %d sends: %s\n", fd, buf);
+    debugf("Byte dump of data: ");
+
+    for(int i = 0; buf[i]; ++i)
     {
-      debugf("%d ", buf[i]);
+        debugf("%02x ", buf[i]);
     }
-  debugf("\n");
-  char ctrl_c[]={0xff, 0xf4, 0xff, 0xfd, 0x06, 0x00};
-  if(strcmp(ctrl_c, buf)==0)
+    debugf("\n");
+
+    char ctrl_c[] = {0xff, 0xf4, 0xff, 0xfd, 0x06, 0x00};
+    if(strcmp(ctrl_c, buf) == 0)
     {
-      debugf("Got CTRL-C from client %d.\n", fd);
-      return -1;
+        debugf("Got CTRL-C from client %d.\n", fd);
+        return -1;
     }
-  if(ret<0) /* error */
+
+    if(ret < 0) /* error */
     {
-      debugf("Error in read()\n");
-      return -1;
+        debugf("Error in read()\n");
+        return -1;
     }
-  if(ret==0)
+
+    if(ret == 0)
     {
-      debugf("EOF from client %d.\n", fd);
-      return -1;
+        debugf("EOF from client %d.\n", fd);
+        return -1;
     }
-  else
+    else
     {
-      int buflen=strlen(buf);
-      if(buflen>0) /* no need to write nothing to the input stream :D */
+        int buflen = strlen(buf);
+        if(buflen > 0)
         {
-          if(buf[0]==0xff)
+            if(buf[0] == 0xff)
             {
-              handle_command(buf, buflen, fd);
+                handle_command(buf, buflen, fd);
             }
-          else if(strlen(buf)>0)
+            else if(strlen(buf) > 0)
             {
-              write(pipes[fd][1],buf,strlen(buf));
+                write(pipes[fd][1], buf, strlen(buf));
             }
-      }
-      return 0;
+        }
     }
-  return 0;
+
+    return 0;
 }
+
 void serv_cleanup()
 {
-  debugf("\nPreparing to exit...\n");
-  fflush(stdout);
-  shutdown(server_socket, SHUT_RDWR);
+    debugf("\nPreparing to exit...\n");
+    fflush(stdout);
+    shutdown(server_socket, SHUT_RDWR);
 }
+
 void setup_new_connection(int fd)
 {
-  unsigned char will_naws[]={IAC, DO, NAWS};
-  write(fd, will_naws, sizeof(will_naws));
-  will_naws[1]=WILL;
-  write(fd, will_naws, sizeof(will_naws));
+    unsigned char will_naws[] = {IAC, DO, NAWS};
+    write(fd, will_naws, sizeof(will_naws));
+    will_naws[1] = WILL;
+    write(fd, will_naws, sizeof(will_naws));
 
-  unsigned char dont_echo[]={IAC, DONT, ECHO};
-  write(fd, dont_echo, sizeof(dont_echo));
-  dont_echo[1]=WONT;
-  write(fd, dont_echo, sizeof(dont_echo));
+    unsigned char dont_echo[] = {IAC, DONT, ECHO};
+    write(fd, dont_echo, sizeof(dont_echo));
+    dont_echo[1] = WONT;
+    write(fd, dont_echo, sizeof(dont_echo));
 
-  unsigned char dont_sga[]={IAC, WONT, SGA};
-  write(fd, dont_sga, sizeof(dont_sga));
+    unsigned char dont_sga[] = {IAC, WONT, SGA};
+    write(fd, dont_sga, sizeof(dont_sga));
 
-  unsigned char will_linemode[]={IAC, WILL, LINEMODE};
-  write(fd, will_linemode, sizeof(will_linemode));
+    unsigned char will_linemode[] = {IAC, WILL, LINEMODE};
+    write(fd, will_linemode, sizeof(will_linemode));
 
-  memset(&connection_data[fd], 0, sizeof(struct connection_data_t));
-  debugf("New connection set up.\n");
+    memset(&connection_data[fd], 0, sizeof(struct connection_data_t));
+    debugf("New connection set up.\n");
 }
+
 int main(int argc, char* argv[])
 {
-  if(argc!=2)
+    if(argc != 2)
     {
-      debugf("Listening on default port: %d\n", DEFAULT_PORT);
-      port=DEFAULT_PORT;
+        debugf("Listening on default port: %d\n", DEFAULT_PORT);
+        port = DEFAULT_PORT;
     }
-  else
+    else
     {
-      int port2=atoi(argv[1]);
-      if(port2<0 || port2>65535)
+        int port2 = atoi(argv[1]);
+        if(port2 < 0 || port2 > 65535)
         {
-          debugf("FATAL: Port out of range.\n");
-          return 2;
+            debugf("FATAL: Port out of range.\n");
+            return 2;
         }
-      port=atoi(argv[1]);
+        port = atoi(argv[1]);
     }
-  debugf("Initializing server on port %u...\n", port);
-  signal(SIGINT, &serv_cleanup);
-  int sock=make_server_socket(port);
-  server_socket=sock;
-  fd_set active_fd_set, read_fd_set;
-  struct sockaddr_in client;
-  if(listen(sock, 1)<0)
+
+    debugf("Initializing server on port %u...\n", port);
+    signal(SIGINT, &serv_cleanup);
+
+    int sock = make_server_socket(port);
+    server_socket = sock;
+
+    fd_set active_fd_set, read_fd_set;
+
+    struct sockaddr_in client;
+
+    if(listen(sock, 1) < 0)
     {
-      debugf("FATAL: Error opening socket.\n");
-      return 1;
+        debugf("FATAL: Error opening socket.\n");
+        return 1;
     }
-  FD_ZERO(&active_fd_set);
-  FD_SET(sock, &active_fd_set);
-  debugf("Server ready, listening on port %d.\n", port);
-  debugf("Maximum clients: %d\n", FD_SETSIZE);
-  while(1)
+
+    FD_ZERO(&active_fd_set);
+    FD_SET(sock, &active_fd_set);
+
+    debugf("Server ready, listening on port %d.\n", port);
+    debugf("Maximum clients: %d\n", FD_SETSIZE);
+
+    while(1)
     {
-      read_fd_set=active_fd_set;
-      int ret=select(FD_SETSIZE, &read_fd_set, 0,0,0);
-      if(ret<0)
+        read_fd_set = active_fd_set;
+        int ret = select(FD_SETSIZE, &read_fd_set, 0, 0, 0);
+        if(ret < 0)
         {
-          debugf("Error in select().\n");
-          return 1;
+            debugf("Error in select().\n");
+            return 1;
         }
-      for(int i=0;i<FD_SETSIZE;++i)
+
+        for(int i = 0; i < FD_SETSIZE; ++i)
         {
-          if(FD_ISSET(i, &read_fd_set))
+            if(FD_ISSET(i, &read_fd_set))
             {
-              if(i==sock)
+                if(i == sock)
                 {
-                  /* new connection */
-                  int new, size;
-                  size=sizeof(client);
-                  new=accept(sock, (struct sockaddr*) &client, &size);
-                  if(new<0)
+                    /* new connection */
+                    int new, size;
+                    size = sizeof(client);
+                    new = accept(sock, (struct sockaddr*) &client, &size);
+                    if(new < 0)
                     {
-                      debugf("Error accepting new connection.\n");
-                      continue;
+                        debugf("Error accepting new connection.\n");
+                        continue;
                     }
-                  debugf("New connection, number %d.\n", new);
-                  FD_SET(new, &active_fd_set);
-                  int ret=pipe(pipes[new]);
-                  if(ret<0)
+
+                    debugf("New connection, number %d.\n", new);
+
+                    FD_SET(new, &active_fd_set);
+
+                    int ret = pipe(pipes[new]);
+
+                    if(ret < 0)
                     {
-                      debugf("Pipe error.\n");
-                      continue;
+                        debugf("Pipe error.\n");
+                        continue;
                     }
-                  pid_t pid=fork();
-                  if(pid<0)
+
+                    pid_t pid = fork();
+
+                    if(pid < 0)
                     {
-                      debugf("Fork error.\n");
-                      continue;
+                        debugf("Fork error.\n");
+                        continue;
                     }
-                  if(pid==0) /* child */
+
+                    if(pid == 0) /* child */
                     {
-                      /* set up the connection */
-                      setup_new_connection(new);
-                      be_joshua(new);
-                      debugf("Client exits\n");
-                      shutdown(new, SHUT_RDWR);
-                      FD_CLR(new, &active_fd_set);
-                      exit(0);
+                        /* set up the connection */
+                        setup_new_connection(new);
+
+                        be_joshua(new);
+
+                        debugf("Client exits\n");
+                        shutdown(new, SHUT_RDWR);
+                        FD_CLR(new, &active_fd_set);
+                        exit(0);
                     }
                 }
-              else
+                else
                 {
-                  /* data from existing connection */
-                  if(process_data(i)<0)
+                    /* data from existing connection */
+                    if(process_data(i) < 0)
                     {
-                      shutdown(i, SHUT_RDWR);
-                      FD_CLR(i, &active_fd_set);
-                      /* should kill the child associated with this connection, too */
+                        shutdown(i, SHUT_RDWR);
+                        FD_CLR(i, &active_fd_set);
+                        /* should kill the child associated with this connection, too */
                     }
                 }
             }
