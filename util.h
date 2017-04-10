@@ -22,6 +22,7 @@
 
 #include <stdint.h>
 #include <stdlib.h>
+#include <sys/types.h>
 
 struct connection_data_t {
   int naws_enable : 1;
